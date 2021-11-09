@@ -23,14 +23,47 @@ def render_license(license_path, file_name='', project_path='', year='',
     return license_text
 
 
+def insert_license(file_text, ext, license_text):
+    if ext == 'css':
+        return f'{license_text}{file_text}'
+
+    file_text = file_text.split('\n')
+    if ext in ('sh', 'py'):
+        insert_line = 0
+        for line, text in enumerate(file_text):
+            if '#!' in text:
+                insert_line = line + 1
+                file_text = '\n'.join(file_text[:insert_line]
+                                      .append(license_text).extend(file_text))
+                return file_text
+
+    if ext == 'html':
+        for line, text in enumerate(file_text):
+            head_tag = '<head>'
+            head_pos = text.find(head_tag)
+            if head_pos >= 0:
+                insert_pos = head_pos + len(head_tag)
+                text = f'{text[:insert_pos]}{license_text}{text[insert_pos:]}'
+                file_text[line] = text
+                return '\n'.join(file_text)
+
+
 def process_file(file_path, license_path, log_path, project_path):
-    with open(file_path) as f:
+    with open(file_path, 'rw') as f:
         file_name = os.path.basename(file_path)
         file_text = f.read()
 
         license_signs = (f'File: {file_name}', f'Project: {project_path}')
         if all(sign in file_text for sign in license_signs):
-            return
+            return 0
+        _, ext = os.path.splitext(file_name)
+        license_text = render_license(license_path, file_name, project_path)
+        file_text = insert_license(file_text, ext, license_text)
+        f.write(file_text)
+        with open(log_path, 'a+') as log:
+            log.write(file_path)
+        return 1
+
 
 @click.command()
 @click.argument('project_path', required=True, type=click.Path(exists=True))
@@ -46,11 +79,15 @@ def process_project(f, l, project_path):
     if not l:
         log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 'license.log')
-
+    updated_files = 0
     for _, __, files in os.walk(project_path):
         for file in files:
-            process_file(file, license_path, log_path, project_path)
+            updated_files += process_file(file, license_path, log_path, project_path)
 
+    print(f'Total files updated: {updated_files}')
+    with open(log_path, 'r') as log:
+        print('Updated files:')
+        print(log.read())
 
 if __name__ == '__main__':
     process_project()
