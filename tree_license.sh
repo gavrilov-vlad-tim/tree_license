@@ -45,13 +45,28 @@ for file in $(find $PRJ_PATH -type f); do
   python3 render.py --filename=$FILENAME --root_folder=$PRJ_PATH_NAME\
           --year=$(date +%Y) $LIC_PATH > tmp_license
 
+# Постобработка и вставка текста лицензии с учетов расширения файла
   case "$EXT" in
   css) sed -i '1 s/^/\x2F\x2A\n/' tmp_license
-       sed -i -e '$a*/' tmp_license
-       sed -i -e ;;
-  html) sed -i "1 s/^/<!--\n/" tmp_license
-        sed -i -e '$a-->' tmp_license;;
-  *) sed -i 's/^/#/' tmp_license;;
+       sed -i '$a*/\n' tmp_license
+       tac tmp_license | xargs --replace=INS -- sed -i '1 i INS' $file;;
+  html) sed -i '1 s/^/<!--\n/' tmp_license
+        sed -i '$a-->' tmp_license
+        sed -i '/<head>/ r tmp_license' $file;;
+  *) sed -i 's/^/#/' tmp_license
+     SHEBANG=$(cat $file)
+     if [ "${SHEBANG:0:2}" = '#!' ]
+     then
+       tac tmp_license | xargs --replace=INS -- sed -i '2i INS' $file
+     else
+       tac tmp_license | xargs --replace=INS -- sed -i '1i INS' $file
+     fi;;
   esac
-
+  rm -f tmp_license
+  echo $file | tee -a $LOG_PATH > /dev/null
 done
+
+# Вывод статистики
+  echo "Total files updated: $(wc -l $LOG_PATH | cut -f1 -d ' ')"
+  echo "Updated files:"
+  cat $LOG_PATH
