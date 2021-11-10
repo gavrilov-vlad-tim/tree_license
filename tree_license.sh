@@ -24,8 +24,9 @@ if [ ! -f $LIC_PATH ]; then echo "No such license file: $LIC_PATH"; return 1; fi
 # Валидация пути к файлу лога
 if [ ! -f $LOG_PATH ] | [ -z $LOG_PATH]; then
   echo "No such log file: $LOG_PATH"
-  touch license.log
   LOG_PATH="$(pwd)/license.log"
+  if [ -f "$LOG_PATH" ]; then rm $LOG_PATH; fi
+  touch license.log
   echo "license.log was created in current directory"
   echo "Log will write to: $LOG_PATH"
 fi
@@ -35,9 +36,10 @@ if [ ! -d $PRJ_PATH ]; then echo "No such project directory: $PRJ_PATH"; return 
 
 # Итерация по файлам проекта
 PRJ_PATH_NAME=$(basename $PRJ_PATH)
-for file in $(find $PRJ_PATH -type f); do
-  FILENAME=$(basename $file)
-  if [ -n "$(grep -w "File: $FILENAME" "$file")" ] && [ -n "$(grep -w "Project: $PRJ_PATH_NAME" "$file")" ]; then
+for current_file in $(find $PRJ_PATH -type f); do
+  if [ -z "$(file $current_file | grep -w text)" ]; then continue; fi
+  FILENAME=$(basename $current_file)
+  if [ -n "$(grep -w "File: $FILENAME" "$current_file")" ] && [ -n "$(grep -w "Project: $PRJ_PATH_NAME" "$current_file")" ]; then
      continue
   fi
   EXT=$(echo "$FILENAME" | cut -f 2 -d '.')
@@ -49,21 +51,21 @@ for file in $(find $PRJ_PATH -type f); do
   case "$EXT" in
   css) sed -i '1 s/^/\x2F\x2A\n/' tmp_license
        sed -i '$a*/\n' tmp_license
-       tac tmp_license | xargs --replace=INS -- sed -i '1 i INS' $file;;
+       tac tmp_license | xargs --replace=INS -- sed -i '1 i INS' $current_file;;
   html) sed -i '1 s/^/<!--\n/' tmp_license
-        sed -i '$a-->' tmp_license
-        sed -i '/<head>/ r tmp_license' $file;;
+        sed -i '$a-->\n' tmp_license
+        sed -i '/<head>/ r tmp_license' $current_file;;
   *) sed -i 's/^/#/' tmp_license
-     SHEBANG=$(cat $file)
+     SHEBANG=$(cat $current_file)
      if [ "${SHEBANG:0:2}" = '#!' ]
      then
-       tac tmp_license | xargs --replace=INS -- sed -i '2i INS' $file
+       tac tmp_license | xargs --replace=INS -- sed -i '2i INS' $current_file
      else
-       tac tmp_license | xargs --replace=INS -- sed -i '1i INS' $file
+       tac tmp_license | xargs --replace=INS -- sed -i '1i INS' $current_file
      fi;;
   esac
   rm -f tmp_license
-  echo $file | tee -a $LOG_PATH > /dev/null
+  echo $current_file | tee -a $LOG_PATH > /dev/null
 done
 
 # Вывод статистики
