@@ -36,13 +36,20 @@ if [ ! -d $PRJ_PATH ]; then echo "No such project directory: $PRJ_PATH"; return 
 
 # Итерация по файлам проекта
 PRJ_PATH_NAME=$(basename $PRJ_PATH)
+EXTS=(py sh html css)
+
 for current_file in $(find $PRJ_PATH -type f); do
-  if [ -z "$(file $current_file | grep -w text)" ]; then continue; fi
   FILENAME=$(basename $current_file)
+  EXT=$(echo "$FILENAME" | cut -f 2 -d '.')
+
+# Пропуска файла с расширением отличным от предустановленного
+  if [[ ! " ${EXTS[*]} " =~ " ${EXT} " ]]; then continue; fi
+# Пропуск не текстовых файлов
+  if [ -z "$(file $current_file | grep -w text)" ]; then continue; fi
+# Пропуск файлов имеющих лицензию
   if [ -n "$(grep -w "File: $FILENAME" "$current_file")" ] && [ -n "$(grep -w "Project: $PRJ_PATH_NAME" "$current_file")" ]; then
      continue
   fi
-  EXT=$(echo "$FILENAME" | cut -f 2 -d '.')
   touch tmp_license
   python3 render.py --filename=$FILENAME --root_folder=$PRJ_PATH_NAME\
           --year=$(date +%Y) $LIC_PATH > tmp_license
